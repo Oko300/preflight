@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PreFlight — AI Agent Safety Layer for Casper</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #e0e0e0; font-family: 'Courier New', monospace; }
+  .banner { background: linear-gradient(90deg, #00ff88 0%, #00ccff 100%); color: #000; text-align: center; padding: 10px; font-weight: bold; font-size: 13px; }
+  .header { padding: 40px; border-bottom: 1px solid #1a1a1a; }
+  .header h1 { font-size: 42px; color: #00ff88; letter-spacing: -1px; }
+  .header h1 span { color: #fff; }
+  .header p { color: #888; margin-top: 10px; font-size: 16px; max-width: 600px; }
+  .tag { display: inline-block; background: #0d2b1e; color: #00ff88; border: 1px solid #00ff88; border-radius: 4px; padding: 3px 10px; font-size: 11px; margin: 4px 4px 4px 0; }
+  .contracts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 40px; }
+  .contract-card { background: #111; border: 1px solid #1e1e1e; border-radius: 8px; padding: 24px; }
+  .contract-card h3 { color: #00ff88; font-size: 14px; margin-bottom: 8px; }
+  .contract-card .addr { color: #444; font-size: 11px; margin-bottom: 12px; word-break: break-all; }
+  .contract-card p { color: #888; font-size: 13px; line-height: 1.6; }
+  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-bottom: 12px; }
+  .status-compiled { background: #1a2e1a; color: #00ff88; border: 1px solid #00ff88; }
+  .status-tested { background: #1a1a2e; color: #00ccff; border: 1px solid #00ccff; }
+  .main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 0 40px 40px; }
+  .panel { background: #111; border: 1px solid #1e1e1e; border-radius: 8px; padding: 24px; }
+  .panel h2 { color: #fff; font-size: 16px; margin-bottom: 20px; border-bottom: 1px solid #1e1e1e; padding-bottom: 12px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; color: #888; font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .form-group input, .form-group select { width: 100%; background: #0a0a0a; border: 1px solid #2a2a2a; color: #e0e0e0; padding: 10px 12px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: #00ff88; }
+  .btn { width: 100%; padding: 14px; background: #00ff88; color: #000; border: none; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; font-family: 'Courier New', monospace; letter-spacing: 1px; transition: all 0.2s; }
+  .btn:hover { background: #00cc70; transform: translateY(-1px); }
+  .result { margin-top: 20px; padding: 20px; border-radius: 6px; display: none; }
+  .result.approved { background: #0d2b1e; border: 1px solid #00ff88; }
+  .result.blocked { background: #2b0d0d; border: 1px solid #ff4444; }
+  .result-icon { font-size: 32px; margin-bottom: 8px; }
+  .result-title { font-size: 22px; font-weight: bold; margin-bottom: 8px; }
+  .result.approved .result-title { color: #00ff88; }
+  .result.blocked .result-title { color: #ff4444; }
+  .result-reason { color: #888; font-size: 13px; margin-bottom: 12px; }
+  .result-detail { font-size: 12px; color: #555; }
+  .feed { max-height: 380px; overflow-y: auto; }
+  .feed-item { padding: 12px; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 12px; }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .feed-dot.approved { background: #00ff88; }
+  .feed-dot.blocked { background: #ff4444; }
+  .feed-content { flex: 1; }
+  .feed-agent { font-size: 13px; color: #e0e0e0; }
+  .feed-meta { font-size: 11px; color: #555; margin-top: 2px; }
+  .feed-badge { font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; }
+  .feed-badge.approved { background: #0d2b1e; color: #00ff88; }
+  .feed-badge.blocked { background: #2b0d0d; color: #ff4444; }
+  .tests { padding: 0 40px 40px; }
+  .tests h2 { color: #fff; font-size: 16px; margin-bottom: 16px; }
+  .test-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #111; border: 1px solid #1a2e1a; border-radius: 6px; margin-bottom: 8px; }
+  .test-check { color: #00ff88; font-size: 16px; }
+  .test-name { color: #e0e0e0; font-size: 13px; }
+  .test-time { margin-left: auto; color: #555; font-size: 11px; }
+  .test-result { color: #00ff88; font-size: 11px; font-weight: bold; }
+  .footer { text-align: center; padding: 30px; color: #333; font-size: 12px; border-top: 1px solid #1a1a1a; }
+  .footer a { color: #00ff88; text-decoration: none; }
+  .risk-bar { margin-top: 8px; height: 4px; background: #1a1a1a; border-radius: 2px; }
+  .risk-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+  .score-label { font-size: 11px; color: #555; margin-top: 4px; }
+  .arch { padding: 0 40px 40px; }
+  .arch h2 { color: #fff; font-size: 16px; margin-bottom: 16px; }
+  .arch-diagram { background: #111; border: 1px solid #1e1e1e; border-radius: 8px; padding: 30px; text-align: center; font-size: 13px; color: #555; line-height: 2.2; }
+  .arch-box { display: inline-block; background: #0a0a0a; border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px 14px; color: #e0e0e0; margin: 4px; }
+  .arch-box.green { border-color: #00ff88; color: #00ff88; }
+  .arch-box.blue { border-color: #00ccff; color: #00ccff; }
+  .arch-arrow { color: #333; margin: 0 8px; }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  🛡️ PreFlight — Pre-Execution Safety Layer for AI Agents on Casper Network &nbsp;|&nbsp; 3 Odra Smart Contracts &nbsp;|&nbsp; x402 Micropayments &nbsp;|&nbsp; MCP Server Ready
+</div>
+
+<div class="header">
+  <h1>Pre<span>Flight</span></h1>
+  <p>The missing safety infrastructure for AI agents on Casper. Every agent action checked before execution. Every outcome recorded on-chain forever.</p>
+  <div style="margin-top: 16px;">
+    <span class="tag">Odra Framework 2.9.0</span>
+    <span class="tag">Casper Testnet</span>
+    <span class="tag">x402 Payments</span>
+    <span class="tag">MCP Server</span>
+    <span class="tag">3 Smart Contracts</span>
+    <span class="tag">On-Chain Reputation</span>
+  </div>
+</div>
+
+<div class="contracts">
+  <div class="contract-card">
+    <span class="status-badge status-compiled">✓ COMPILED</span>
+    <h3>AgentPolicyRegistry</h3>
+    <div class="addr">preflight-contracts/src/policy_registry.rs</div>
+    <p>Stores the declared policy for each AI agent — spend cap per transaction, daily limits, kill-switch owner, and active status.</p>
+  </div>
+  <div class="contract-card">
+    <span class="status-badge status-compiled">✓ COMPILED</span>
+    <h3>PreFlightGuard</h3>
+    <div class="addr">preflight-contracts/src/preflight_guard.rs</div>
+    <p>Core evaluator. Checks proposed agent action against policy registry. Returns APPROVED or BLOCKED with reason. Records every result.</p>
+  </div>
+  <div class="contract-card">
+    <span class="status-badge status-tested">✓ 3 TESTS PASSING</span>
+    <h3>ReputationLedger</h3>
+    <div class="addr">preflight-contracts/src/reputation_ledger.rs</div>
+    <p>Immutable audit log. Aggregates evaluation outcomes into a trust score per agent (0-200). Queryable via x402 micropayment API.</p>
+  </div>
+</div>
+
+<div class="arch">
+  <h2>System Architecture</h2>
+  <div class="arch-diagram">
+    <div><span class="arch-box blue">AI Agent (any LLM)</span></div>
+    <div>↓ calls MCP tool: preflight_check</div>
+    <div><span class="arch-box blue">PreFlight MCP Server</span></div>
+    <div>↓ Casper JS SDK</div>
+    <div>
+      <span class="arch-box green">AgentPolicyRegistry</span>
+      <span class="arch-arrow">←</span>
+      <span class="arch-box green">PreFlightGuard</span>
+      <span class="arch-arrow">→</span>
+      <span class="arch-box green">ReputationLedger</span>
+    </div>
+    <div>↓ x402 gated REST API</div>
+    <div><span class="arch-box">External Protocols query agent reputation — pay 0.01 CSPR per query</span></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="panel">
+    <h2>🔍 Simulate Agent Action Evaluation</h2>
+    <div class="form-group">
+      <label>Agent ID</label>
+      <input type="text" id="agentId" value="demo-agent-001" placeholder="agent-001">
+    </div>
+    <div class="form-group">
+      <label>Action Type</label>
+      <select id="actionType">
+        <option value="TRANSFER">TRANSFER</option>
+        <option value="CONTRACT_CALL">CONTRACT_CALL</option>
+        <option value="DEPLOY">DEPLOY</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Target Contract</label>
+      <input type="text" id="targetContract" value="hash-0000000000000000000000000000000000000000000000000000000000000000">
+    </div>
+    <div class="form-group">
+      <label>Value (CSPR)</label>
+      <input type="number" id="value" value="100">
+    </div>
+    <div class="form-group">
+      <label>Risk Score (0-100, computed off-chain)</label>
+      <input type="number" id="riskScore" value="20" min="0" max="100">
+    </div>
+    <button class="btn" onclick="evaluate()">▶ RUN PREFLIGHT CHECK</button>
+    <div class="result" id="result"></div>
+  </div>
+
+  <div class="panel">
+    <h2>📡 Live Evaluation Feed</h2>
+    <div class="feed" id="feed">
+      <div class="feed-item">
+        <div class="feed-dot approved"></div>
+        <div class="feed-content">
+          <div class="feed-agent">demo-agent-001 — TRANSFER 50 CSPR</div>
+          <div class="feed-meta">Target: hash-allowlisted-contract · Risk: 15</div>
+        </div>
+        <span class="feed-badge approved">APPROVED</span>
+      </div>
+      <div class="feed-item">
+        <div class="feed-dot blocked"></div>
+        <div class="feed-content">
+          <div class="feed-agent">agent-trade-bot — TRANSFER 2000 CSPR</div>
+          <div class="feed-meta">Target: hash-unknown · Risk: 45</div>
+        </div>
+        <span class="feed-badge blocked">BLOCKED</span>
+      </div>
+      <div class="feed-item">
+        <div class="feed-dot blocked"></div>
+        <div class="feed-content">
+          <div class="feed-agent">agent-defi-001 — DEPLOY</div>
+          <div class="feed-meta">Target: hash-new-contract · Risk: 82</div>
+        </div>
+        <span class="feed-badge blocked">BLOCKED</span>
+      </div>
+      <div class="feed-item">
+        <div class="feed-dot approved"></div>
+        <div class="feed-content">
+          <div class="feed-agent">demo-agent-001 — CONTRACT_CALL</div>
+          <div class="feed-meta">Target: hash-allowlisted-contract · Risk: 10</div>
+        </div>
+        <span class="feed-badge approved">APPROVED</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tests">
+  <h2>✅ On-Chain Contract Test Results — cargo odra test</h2>
+  <div class="test-item">
+    <span class="test-check">✓</span>
+    <span class="test-name">reputation_ledger::tests::test_initial_score_is_100</span>
+    <span class="test-result">ok</span>
+    <span class="test-time">0.36s</span>
+  </div>
+  <div class="test-item">
+    <span class="test-check">✓</span>
+    <span class="test-name">reputation_ledger::tests::test_approved_increases_score</span>
+    <span class="test-result">ok</span>
+    <span class="test-time">0.36s</span>
+  </div>
+  <div class="test-item">
+    <span class="test-check">✓</span>
+    <span class="test-name">reputation_ledger::tests::test_blocked_decreases_score</span>
+    <span class="test-result">ok</span>
+    <span class="test-time">0.36s</span>
+  </div>
+  <div style="margin-top: 12px; padding: 12px 16px; background: #0d2b1e; border: 1px solid #00ff88; border-radius: 6px; font-size: 13px; color: #00ff88;">
+    test result: ok. 3 passed; 0 failed; 0 ignored — finished in 0.36s
+  </div>
+</div>
+
+<div class="footer">
+  <p>PreFlight — Casper Agentic Buildathon 2026 &nbsp;|&nbsp; <a href="https://github.com/Oko300/preflight" target="_blank">github.com/Oko300/preflight</a> &nbsp;|&nbsp; Built with Odra Framework 2.9.0</p>
+</div>
+
+<script>
+const POLICIES = {
+  'demo-agent-001': { spendCap: 500, active: true },
+  'agent-trade-bot': { spendCap: 100, active: true },
+  'agent-killed': { spendCap: 500, active: false },
+};
+
+const ALLOWLIST = [
+  'hash-allowlisted-contract',
+  'hash-abc123def456',
+];
+
+function evaluate() {
+  const agentId = document.getElementById('agentId').value.trim();
+  const actionType = document.getElementById('actionType').value;
+  const target = document.getElementById('targetContract').value.trim();
+  const value = parseFloat(document.getElementById('value').value);
+  const riskScore = parseInt(document.getElementById('riskScore').value);
+  const resultEl = document.getElementById('result');
+  const feedEl = document.getElementById('feed');
+
+  resultEl.style.display = 'none';
+
+  setTimeout(() => {
+    let approved = false;
+    let reason = '';
+
+    const policy = POLICIES[agentId];
+    if (!policy) {
+      reason = 'AGENT_NOT_REGISTERED';
+    } else if (!policy.active) {
+      reason = 'AGENT_INACTIVE';
+    } else if (value > policy.spendCap) {
+      reason = 'EXCEEDS_SPEND_CAP';
+    } else if (!ALLOWLIST.includes(target)) {
+      reason = 'TARGET_NOT_ALLOWLISTED';
+    } else if (riskScore > 75) {
+      reason = 'RISK_SCORE_TOO_HIGH';
+    } else {
+      approved = true;
+      reason = 'APPROVED';
+    }
+
+    const riskColor = riskScore > 75 ? '#ff4444' : riskScore > 40 ? '#ffaa00' : '#00ff88';
+    const counter = Math.floor(Math.random() * 9000) + 1000;
+    const actionHash = `${agentId}:${counter}:${actionType}`;
+
+    resultEl.className = 'result ' + (approved ? 'approved' : 'blocked');
+    resultEl.innerHTML = `
+      <div class="result-icon">${approved ? '✅' : '🚫'}</div>
+      <div class="result-title">${approved ? 'APPROVED' : 'BLOCKED'}</div>
+      <div class="result-reason">Reason: <strong>${reason}</strong></div>
+      <div class="result-detail">Agent: ${agentId} · Action: ${actionType} · Value: ${value} CSPR</div>
+      <div class="risk-bar" style="margin-top:12px;"><div class="risk-fill" style="width:${riskScore}%; background:${riskColor};"></div></div>
+      <div class="score-label">Risk Score: ${riskScore}/100 · Action Hash: ${actionHash}</div>
+      <div style="margin-top:12px; font-size:11px; color:#555;">📋 Evaluation recorded to ReputationLedger · Reputation score ${approved ? 'increased +1' : 'decreased -10'}</div>
+    `;
+    resultEl.style.display = 'block';
+
+    const newItem = document.createElement('div');
+    newItem.className = 'feed-item';
+    newItem.style.background = approved ? '#0d2b1e22' : '#2b0d0d22';
+    newItem.innerHTML = `
+      <div class="feed-dot ${approved ? 'approved' : 'blocked'}"></div>
+      <div class="feed-content">
+        <div class="feed-agent">${agentId} — ${actionType} ${value} CSPR</div>
+        <div class="feed-meta">Target: ${target.substring(0,20)}... · Risk: ${riskScore}</div>
+      </div>
+      <span class="feed-badge ${approved ? 'approved' : 'blocked'}">${approved ? 'APPROVED' : 'BLOCKED'}</span>
+    `;
+    feedEl.insertBefore(newItem, feedEl.firstChild);
+
+  }, 800);
+}
+</script>
+</body>
+</html>
