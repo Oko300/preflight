@@ -302,6 +302,7 @@ function evaluate() {
     `;
     feedEl.insertBefore(newItem, feedEl.firstChild);
 
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 800);
 }
 </script>
