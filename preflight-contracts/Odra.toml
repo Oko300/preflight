@@ -1,0 +1,8 @@
+[[contracts]]
+fqn = "AgentPolicyRegistry"
+
+[[contracts]]
+fqn = "PreFlightGuard"
+
+[[contracts]]
+fqn = "ReputationLedger"

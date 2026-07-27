@@ -1,0 +1,27 @@
+[package]
+name = "preflight-contracts"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+odra = { version = "2.9.0", default-features = false }
+
+[dev-dependencies]
+odra = { version = "2.9.0" }
+odra-test = { version = "2.9.0" }
+
+[features]
+livenet = ["dep:odra-casper-livenet-env"]
+
+[dependencies.odra-casper-livenet-env]
+version = "2.9.0"
+optional = true
+
+[[bin]]
+name = "deploy_preflight"
+path = "bin/deploy_preflight.rs"
+required-features = ["livenet"]
+test = false
