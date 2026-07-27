@@ -30,6 +30,7 @@
   .form-group input:focus, .form-group select:focus { outline: none; border-color: #00ff88; }
   .btn { width: 100%; padding: 14px; background: #00ff88; color: #000; border: none; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; font-family: 'Courier New', monospace; letter-spacing: 1px; transition: all 0.2s; }
   .btn:hover { background: #00cc70; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
   .result { margin-top: 20px; padding: 20px; border-radius: 6px; display: none; }
   .result.approved { background: #0d2b1e; border: 1px solid #00ff88; }
   .result.blocked { background: #2b0d0d; border: 1px solid #ff4444; }
@@ -39,7 +40,8 @@
   .result.blocked .result-title { color: #ff4444; }
   .result-reason { color: #888; font-size: 13px; margin-bottom: 12px; }
   .result-detail { font-size: 12px; color: #555; }
-  .feed { max-height: 380px; overflow-y: auto; }
+  .feed { max-height: 420px; overflow-y: auto; }
+  .feed-empty { padding: 60px 20px; text-align: center; color: #333; font-size: 13px; }
   .feed-item { padding: 12px; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 12px; }
   .feed-item:last-child { border-bottom: none; }
   .feed-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -70,6 +72,7 @@
   .arch-box.green { border-color: #00ff88; color: #00ff88; }
   .arch-box.blue { border-color: #00ccff; color: #00ccff; }
   .arch-arrow { color: #333; margin: 0 8px; }
+  .processing { text-align: center; padding: 20px; color: #00ff88; font-size: 13px; display: none; }
 </style>
 </head>
 <body>
@@ -136,11 +139,12 @@
     <h2>🔍 Simulate Agent Action Evaluation</h2>
     <div class="form-group">
       <label>Agent ID</label>
-      <input type="text" id="agentId" value="demo-agent-001" placeholder="agent-001">
+      <input type="text" id="agentId" placeholder="e.g. demo-agent-001">
     </div>
     <div class="form-group">
       <label>Action Type</label>
       <select id="actionType">
+        <option value="">-- Select Action --</option>
         <option value="TRANSFER">TRANSFER</option>
         <option value="CONTRACT_CALL">CONTRACT_CALL</option>
         <option value="DEPLOY">DEPLOY</option>
@@ -148,26 +152,25 @@
     </div>
     <div class="form-group">
       <label>Target Contract</label>
-      <input type="text" id="targetContract" value="hash-0000000000000000000000000000000000000000000000000000000000000000">
+      <input type="text" id="targetContract" placeholder="e.g. hash-allowlisted-contract">
     </div>
     <div class="form-group">
       <label>Value (CSPR)</label>
-      <input type="number" id="value" value="100">
+      <input type="number" id="value" placeholder="e.g. 100">
     </div>
     <div class="form-group">
-      <label>Risk Score (0-100, computed off-chain)</label>
-      <input type="number" id="riskScore" value="20" min="0" max="100">
+      <label>Risk Score (0-100)</label>
+      <input type="number" id="riskScore" placeholder="e.g. 20" min="0" max="100">
     </div>
     <button class="btn" onclick="evaluate()">▶ RUN PREFLIGHT CHECK</button>
+    <div class="processing" id="processing">⏳ Evaluating action on Casper...</div>
     <div class="result" id="result"></div>
   </div>
 
   <div class="panel">
     <h2>📡 Live Evaluation Feed</h2>
-<div class="feed" id="feed">
-      <div style="padding: 40px; text-align: center; color: #333; font-size: 13px;">
-        No evaluations yet. Run a preflight check to see results here.
-      </div>
+    <div class="feed" id="feed">
+      <div class="feed-empty" id="feedEmpty">No evaluations yet.<br>Run a preflight check to see live results here.</div>
     </div>
   </div>
 </div>
@@ -220,11 +223,21 @@ function evaluate() {
   const value = parseFloat(document.getElementById('value').value);
   const riskScore = parseInt(document.getElementById('riskScore').value);
   const resultEl = document.getElementById('result');
+  const processingEl = document.getElementById('processing');
   const feedEl = document.getElementById('feed');
+  const feedEmpty = document.getElementById('feedEmpty');
+
+  if (!agentId || !actionType || !target || isNaN(value) || isNaN(riskScore)) {
+    alert('Please fill in all fields before running the preflight check.');
+    return;
+  }
 
   resultEl.style.display = 'none';
+  processingEl.style.display = 'block';
 
   setTimeout(() => {
+    processingEl.style.display = 'none';
+
     let approved = false;
     let reason = '';
 
@@ -259,6 +272,9 @@ function evaluate() {
       <div style="margin-top:12px; font-size:11px; color:#555;">📋 Evaluation recorded to ReputationLedger · Reputation score ${approved ? 'increased +1' : 'decreased -10'}</div>
     `;
     resultEl.style.display = 'block';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    if (feedEmpty) feedEmpty.remove();
 
     const newItem = document.createElement('div');
     newItem.className = 'feed-item';
@@ -267,14 +283,13 @@ function evaluate() {
       <div class="feed-dot ${approved ? 'approved' : 'blocked'}"></div>
       <div class="feed-content">
         <div class="feed-agent">${agentId} — ${actionType} ${value} CSPR</div>
-        <div class="feed-meta">Target: ${target.substring(0,20)}... · Risk: ${riskScore}</div>
+        <div class="feed-meta">Target: ${target.substring(0,30)}... · Risk: ${riskScore}</div>
       </div>
       <span class="feed-badge ${approved ? 'approved' : 'blocked'}">${approved ? 'APPROVED' : 'BLOCKED'}</span>
     `;
     feedEl.insertBefore(newItem, feedEl.firstChild);
 
-    resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 800);
+  }, 1200);
 }
 </script>
 </body>
